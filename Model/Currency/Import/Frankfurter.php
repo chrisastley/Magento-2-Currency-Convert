@@ -1,92 +1,95 @@
 <?php
-
 namespace Thanhdv2811\CurrencyConverter\Model\Currency\Import;
+
+use Magento\Directory\Model\Currency\Import\AbstractImport;
+use Magento\Directory\Model\CurrencyFactory;
+use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\Framework\HTTP\ClientInterface;
+use Magento\Framework\Json\Helper\Data as JsonHelper;
+use Magento\Store\Model\ScopeInterface;
 
 /**
  * Currency rate import model (From https://frankfurter.app/)
  */
-class Frankfurter extends \Magento\Directory\Model\Currency\Import\AbstractImport
+class Frankfurter extends AbstractImport
 {
     /**
      * @var string
      */
-    const CURRENCY_CONVERTER_URL = 'https://frankfurter.app/current?from={{CURRENCY_FROM}}&to={{CURRENCY_TO}}';
-
-    /** @var \Magento\Framework\Json\Helper\Data */
-    protected $jsonHelper;
+    private const CURRENCY_CONVERTER_URL = 'https://api.frankfurter.app/current?from={{CURRENCY_FROM}}&to={{CURRENCY_TO}}';
 
     /**
-     * Http Client Factory
-     *
-     * @var \Magento\Framework\HTTP\ZendClientFactory
+     * @var JsonHelper
      */
-    protected $httpClientFactory;
+    private JsonHelper $jsonHelper;
 
     /**
-     * Core scope config
-     *
-     * @var \Magento\Framework\App\Config\ScopeConfigInterface
+     * @var ClientInterface
      */
-    private $scopeConfig;
+    private ClientInterface $httpClient;
+
+    /**
+     * @var ScopeConfigInterface
+     */
+    private ScopeConfigInterface $scopeConfig;
 
     /**
      * Initialize dependencies
      *
-     * @param \Magento\Directory\Model\CurrencyFactory $currencyFactory
-     * @param \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig
-     * @param \Magento\Framework\HTTP\ZendClientFactory $httpClientFactory
-     * @param \Magento\Framework\Json\Helper\Data $jsonHelper
+     * @param CurrencyFactory $currencyFactory
+     * @param ScopeConfigInterface $scopeConfig
+     * @param ClientInterface $httpClient
+     * @param JsonHelper $jsonHelper
      */
     public function __construct(
-        \Magento\Directory\Model\CurrencyFactory $currencyFactory,
-        \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig,
-        \Magento\Framework\HTTP\ZendClientFactory $httpClientFactory,
-        \Magento\Framework\Json\Helper\Data $jsonHelper
+        CurrencyFactory $currencyFactory,
+        ScopeConfigInterface $scopeConfig,
+        ClientInterface $httpClient,
+        JsonHelper $jsonHelper
     ) {
         parent::__construct($currencyFactory);
         $this->scopeConfig = $scopeConfig;
-        $this->httpClientFactory = $httpClientFactory;
+        $this->httpClient = $httpClient;
         $this->jsonHelper = $jsonHelper;
     }
 
     /**
-     * @param string $currencyFrom
-     * @param string $currencyTo
-     * @param int $retry
-     * @return float|null
+     * @inheritDoc
      */
     protected function _convert($currencyFrom, $currencyTo, $retry = 0)
     {
         $result = null;
         $timeout = (int)$this->scopeConfig->getValue(
             'currency/currencyLayer/timeout',
-            \Magento\Store\Model\ScopeInterface::SCOPE_STORE
+            ScopeInterface::SCOPE_STORE
         );
-        $url = str_replace('{{CURRENCY_FROM}}', $currencyFrom, self::CURRENCY_CONVERTER_URL);
-        $url = str_replace('{{CURRENCY_TO}}', $currencyTo, $url);
 
-        /** @var \Magento\Framework\HTTP\ZendClient $httpClient */
-        $httpClient = $this->httpClientFactory->create();
+        $url = str_replace(
+            ['{{CURRENCY_FROM}}', '{{CURRENCY_TO}}'],
+            [$currencyFrom, $currencyTo],
+            self::CURRENCY_CONVERTER_URL
+        );
 
         try {
-            $response = $httpClient->setUri($url)
-                ->setConfig(['timeout' => $timeout])
-                ->request('GET')
-                ->getBody();
-
+            $this->httpClient->setTimeout($timeout);
+            $this->httpClient->get($url);
+            $response = $this->httpClient->getBody();
+            
             $data = $this->jsonHelper->jsonDecode($response);
+            
             if (isset($data['rates'][$currencyTo])) {
                 $result = (float)$data['rates'][$currencyTo];
             } else {
                 $this->_messages[] = __('We can\'t retrieve a rate from %1.', $url);
             }
         } catch (\Exception $e) {
-            if ($retry == 0) {
-                $this->_convert($currencyFrom, $currencyTo, 1);
+            if ($retry === 0) {
+                $result = $this->_convert($currencyFrom, $currencyTo, 1);
             } else {
                 $this->_messages[] = __('We can\'t retrieve a rate from %1.', $url);
             }
         }
+
         return $result;
     }
 }

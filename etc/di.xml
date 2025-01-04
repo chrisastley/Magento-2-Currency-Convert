@@ -6,6 +6,7 @@
  */
 -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <!-- Currency Service Configurations -->
     <type name="Magento\Directory\Model\Currency\Import\Config">
         <arguments>
             <argument name="servicesConfig" xsi:type="array">
@@ -22,6 +23,25 @@
                     <item name="class" xsi:type="string">Thanhdv2811\CurrencyConverter\Model\Currency\Import\Frankfurter</item>
                 </item>
             </argument>
+        </arguments>
+    </type>
+
+    <!-- HTTP Client Configurations -->
+    <type name="Thanhdv2811\CurrencyConverter\Model\Currency\Import\CurrencyLayer">
+        <arguments>
+            <argument name="httpClient" xsi:type="object">Magento\Framework\HTTP\Client\Curl</argument>
+        </arguments>
+    </type>
+
+    <type name="Thanhdv2811\CurrencyConverter\Model\Currency\Import\Fcc">
+        <arguments>
+            <argument name="httpClient" xsi:type="object">Magento\Framework\HTTP\Client\Curl</argument>
+        </arguments>
+    </type>
+
+    <type name="Thanhdv2811\CurrencyConverter\Model\Currency\Import\Frankfurter">
+        <arguments>
+            <argument name="httpClient" xsi:type="object">Magento\Framework\HTTP\Client\Curl</argument>
         </arguments>
     </type>
 </config>
